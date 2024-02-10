@@ -13,7 +13,7 @@ class Model:
         (self.x_train, self.y_train), (self.x_test, self.y_test) = keras.datasets.cifar10.load_data()
         self.x_train = self.x_train.reshape(self.x_train.shape[0], 32, 32, 3)
         self.x_test = self.x_test.reshape(self.x_test.shape[0], 32, 32, 3)
-        self.input_shape = (32, 32, 3)
+        self.input_shape = (32,32,3)
         self.x_train = self.x_train.astype('float32')
         self.x_test = self.x_test.astype('float32')
         self.x_train /= 255
@@ -99,7 +99,7 @@ class Model:
         self.model.fit(x=self.x_train,y=self.y_train, epochs=2)
         end_t = time.time()
         train_duration = end_t - start_t
-        res = self.model.evaluate(self.x_test, self.y_test,verbose = "2")
+        res = self.model.evaluate(self.x_test, self.y_test,verbose = "1")
         self.fitness = res[1]/math.log(train_duration,10)
         return self.fitness
 
@@ -107,7 +107,7 @@ class Model:
         assert self.model != None
         nmodel = Sequential()
         ndna = {}
-        i,j,k = 1,1,1
+        i,j,k,l = 1,1,1,1
         for _ in self.model.layers:
             fbase = 1 << random.randrange(2,7)
             nbase = 1 << random.randrange(2,5)
@@ -117,19 +117,29 @@ class Model:
                 dropout_percent = random.random()
 
             
-            if isinstance(_,Conv2D) and random.randint(0,1):
+            if isinstance(_,Conv2D) and i == 1:
                 ndna["Conv2D_" + str(i)] = Conv2D(fbase, (3,3), input_shape = self.input_shape, padding = "same", activation = tf.nn.relu)
-                nmodel.add(ndna["Conv2D_" + str(i)])
+                nmodel.add(Conv2D(fbase, (3,3), input_shape = self.input_shape, padding = "same", activation = tf.nn.relu))
                 i += 1
-            
+            elif isinstance(_,Conv2D) and random.randint(0,1):
+                ndna["Conv2D_" + str(i)] = Conv2D(fbase, (3,3), activation = tf.nn.relu)
+                nmodel.add(Conv2D(fbase, (3,3), input_shape = self.input_shape, padding = "same", activation = tf.nn.relu))
+                i += 1
+            if isinstance(_,MaxPooling2D):
+                ndna["MaxPooling2D_"+str(l)] = MaxPooling2D(pool_size = (2,2))
+                nmodel.add(MaxPooling2D(pool_size = (2,2)))
+                l += 1
+            if isinstance(_,Flatten):
+                ndna["Flatten"] = Flatten()
+                nmodel.add(Flatten())
             if isinstance(_,Dropout) and random.randint(0,1):
                 ndna["Dropout_" + str(j)] = Dropout(dropout_percent)
-                nmodel.add(ndna["Dropout_" + str(j)])
+                nmodel.add(Dropout(dropout_percent))
                 j += 1
                 
-            if isinstance(_,Dense) and random.randint(0,1):
+            if isinstance(_,Dense):
                 ndna["Dense_"+str(k)] = Dense(nbase, tf.nn.relu)
-            
+                nmodel.add(Dense(nbase, tf.nn.relu))            
             ndna["Dense"] = Dense(10, tf.nn.softmax)
         
         nmodel.compile(optimizer='adam', 
@@ -154,16 +164,16 @@ class Model:
             f.close()
             
     
-def getBestIndividual() -> str:
+def getBestIndividual(generation_path: str) -> dict:
     bmodel = ""
     bfitness = 0.
-    for model in os.listdir("./models"):
-        with open("./models/" + model,"r+") as file:
+    for model in os.listdir(generation_path):
+        with open(generation_path + model,"r+") as file:
             configs = json.load(file)
             if configs['fitness'] > bfitness:
                 bfitness = configs['fitness']
                 bmodel = str(model)
-    return bmodel        
+    return Model(config = configs)   
     
-def load_model(model_name : str) -> Sequential:
-    return keras.Sequential.from_config(json.load(open("./models/"+model_name)))
+def load_model(model_name : str, generation: int) -> Sequential:
+    return keras.Sequential.from_config(json.load(open("./generation_"+str(generation)+"/"+model_name)))
